@@ -42,6 +42,7 @@ class ProvisioningHandler:
         self.claim_cert = self.config_parameters['CLAIM_CERT']
         self.secure_key = self.config_parameters['SECURE_KEY']
         self.root_cert = self.config_parameters['ROOT_CERT']
+        self.actua_cert_path = self.config_parameters['ACTUAL_CERT_PATH']
     
         # Sample Provisioning Template requests a serial number as a 
         # seed to generate Thing names in IoTCore. Simulating here.
@@ -111,8 +112,8 @@ class ProvisioningHandler:
 
 
     def get_current_certs(self):
-        non_bootstrap_certs = glob.glob('{}/[!boot]*.crt'.format(self.secure_cert_path))
-        non_bootstrap_key = glob.glob('{}/[!boot]*.key'.format(self.secure_cert_path))
+        non_bootstrap_certs = glob.glob('{}/[!boot]*.crt'.format(self.actua_cert_path))
+        non_bootstrap_key = glob.glob('{}/[!boot]*.key'.format(self.actua_cert_path))
 
         #Get the current cert
         if len(non_bootstrap_certs) > 0:
@@ -230,14 +231,14 @@ class ProvisioningHandler:
 
         self.new_cert_name = '{}-certificate.pem.crt'.format(self.new_key_root)
         ### Create certificate
-        f = open('{}/{}'.format(self.secure_cert_path, self.new_cert_name), 'w+')
+        f = open('{}/{}'.format(self.actua_cert_path, self.new_cert_name), 'w+')
         f.write(payload['certificatePem'])
         f.close()
         
 
         ### Create private key
         self.new_key_name = '{}-private.pem.key'.format(self.new_key_root)
-        f = open('{}/{}'.format(self.secure_cert_path, self.new_key_name), 'w+')
+        f = open('{}/{}'.format(self.actua_cert_path, self.new_key_name), 'w+')
         f.write(payload['privateKey'])
         f.close()
 
@@ -283,7 +284,7 @@ class ProvisioningHandler:
         self.cert_validation_test()
         self.new_cert_pub_sub()
         print("##### ACTIVATED AND TESTED CREDENTIALS ({}, {}). #####".format(self.new_key_name, self.new_cert_name))
-        print("##### FILES SAVED TO {} #####".format(self.secure_cert_path))
+        print("##### FILES SAVED TO {} #####".format(self.actua_cert_path))
 
     def cert_validation_test(self):
         event_loop_group = io.EventLoopGroup(1)
@@ -292,8 +293,8 @@ class ProvisioningHandler:
 
         self.test_MQTTClient = mqtt_connection_builder.mtls_from_path(
             endpoint=self.iot_endpoint,
-            cert_filepath="{}/{}".format(self.secure_cert_path, self.new_cert_name),
-            pri_key_filepath="{}/{}".format(self.secure_cert_path, self.new_key_name),
+            cert_filepath="{}/{}".format(self.actua_cert_path, self.new_cert_name),
+            pri_key_filepath="{}/{}".format(self.actua_cert_path, self.new_key_name),
             client_bootstrap=client_bootstrap,
             ca_filepath="{}/{}".format(self.secure_cert_path, self.root_cert),
             client_id=self.unique_id + "-Prod",
@@ -332,12 +333,49 @@ class ProvisioningHandler:
             callback=self.basic_callback)
 
         # Wait for subscription to succeed
-        mqtt_topic_subscribe_result = mqtt_topic_subscribe_future.result()
-        print("Subscribed with {}".format(str(mqtt_topic_subscribe_result['qos'])))
+        # mqtt_topic_subscribe_result = mqtt_topic_subscribe_future.result()
+        # print("Subscribed with {}".format(str(mqtt_topic_subscribe_result['qos'])))
 
         self.test_MQTTClient.publish(
             topic="openworld",
             payload=json.dumps({"service_response": "##### RESPONSE FROM PREVIOUSLY FORBIDDEN TOPIC #####"}),
+            qos=mqtt.QoS.AT_LEAST_ONCE)
+    
+    def test_restricted_topic(self, message):
+        """Methed to test sending a custom message to the restricted queue
+        """
+
+        event_loop_group = io.EventLoopGroup(1)
+        host_resolver = io.DefaultHostResolver(event_loop_group)
+        client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+
+        self.test_MQTTClient = mqtt_connection_builder.mtls_from_path(
+            endpoint=self.iot_endpoint,
+            cert_filepath="{}/{}".format(self.actua_cert_path, self.new_cert_name),
+            pri_key_filepath="{}/{}".format(self.actua_cert_path, self.new_key_name),
+            client_bootstrap=client_bootstrap,
+            ca_filepath="{}/{}".format(self.secure_cert_path, self.root_cert),
+            client_id=self.unique_id + "-Prod",
+            clean_session=False,
+            keep_alive_secs=6)
+        
+        print("Connecting with Prod certs to {} with client ID '{}'...".format(self.iot_endpoint, self.unique_id + "-Prod"))
+        connect_future = self.test_MQTTClient.connect()
+        # Future.result() waits until a result is available
+        connect_future.result()
+        print("Connected with Prod certs!")
+
+        new_cert_topic = "openworld"
+        mqtt_topic_subscribe_future, _ = self.test_MQTTClient.subscribe(
+            topic=new_cert_topic,
+            qos=mqtt.QoS.AT_LEAST_ONCE,
+            callback=self.basic_callback)
+        
+        print("Sending message:{} to restricted topic:{}".format(message,new_cert_topic))
+        self.test_MQTTClient.publish(
+            topic="openworld",
+            payload=json.dumps({" service_response": "##### RESPONSE FROM PREVIOUSLY FORBIDDEN TOPIC #####",
+                "messagebody": message}),
             qos=mqtt.QoS.AT_LEAST_ONCE)
 
 

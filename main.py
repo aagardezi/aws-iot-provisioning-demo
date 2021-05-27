@@ -27,9 +27,15 @@
 # ------------------------------------------------------------------------------
 
 from provisioning_handler import ProvisioningHandler
+from job_agent import DeviceJobAgent
 from utils.config_loader import Config
 from pyfiglet import Figlet
-
+import sys
+import ssl
+from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+import json
+import time
+import os
 
 #Set Config path
 CONFIG_PATH = 'config.ini'
@@ -38,6 +44,9 @@ config = Config(CONFIG_PATH)
 config_parameters = config.get_section('SETTINGS')
 secure_cert_path = config_parameters['SECURE_CERT_PATH']
 bootstrap_cert = config_parameters['CLAIM_CERT']
+actua_cert_path = config_parameters['ACTUAL_CERT_PATH']
+
+provisioner = ProvisioningHandler(CONFIG_PATH)
 
 # Demo Theater
 f = Figlet(font='slant')
@@ -58,7 +67,6 @@ def callback(payload):
 # a cloud cert management pattern) attempts to make cert exchange easy.
 def run_provisioning(isRotation):
 
-    provisioner = ProvisioningHandler(CONFIG_PATH)
 
     if isRotation:
         provisioner.get_official_certs(callback, isRotation=True)  
@@ -75,8 +83,38 @@ def run_provisioning(isRotation):
         except IOError:
             print("### Bootstrap cert non-existent. Official cert may already be in place.")
 
+def check_real_cert():
+    if os.path.exists(actua_cert_path) and os.path.isdir(actua_cert_path):
+        if not os.listdir(actua_cert_path):
+            print("Actual cert Directory is empty")
+            run_provisioning(isRotation=False)
+            print("Provisioning complete. Starting job agent to listen for jobs")
+            jobagent = DeviceJobAgent("Samplething_{}".format(provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
+            while True:
+                jobagent.init()
+                while not jobagent.isRebooting():
+                    time.sleep(1)
+                jobagent.disconnect()
+        else:    
+            print("Directory is not empty so actual cert downloaded")
+            files = [filename for filename in os.listdir(actua_cert_path) if filename.endswith('.crt')]
+            provisioner.new_cert_name = files[0]
+            files = [filename for filename in os.listdir(actua_cert_path) if filename.endswith('.key')]
+            provisioner.new_key_name = files[0]
+            provisioner.test_restricted_topic(message="test message")
+            print("Starting job agent to listen for jobs")
+            jobagent = DeviceJobAgent("Samplething_{}".format(provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
+            while True:
+                jobagent.init()
+                while not jobagent.isRebooting():
+                    time.sleep(1)
+                jobagent.disconnect()
+            
+    else:
+        print("Given directory doesn't exist")
+
 if __name__ == "__main__":
-    run_provisioning(isRotation=False)
+    check_real_cert()
 
     
 
