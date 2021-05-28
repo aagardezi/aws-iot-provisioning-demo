@@ -36,6 +36,7 @@ from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
 import json
 import time
 import os
+from threading import Thread
 
 #Set Config path
 CONFIG_PATH = 'config.ini'
@@ -89,6 +90,8 @@ def check_real_cert():
         if not os.listdir(actua_cert_path):
             print("Actual cert Directory is empty")
             run_provisioning(isRotation=False)
+            print("Starting sensor")
+            sensor_simulator(provisioner)
             print("Provisioning complete. Starting job agent to listen for jobs")
             jobagent = DeviceJobAgent("{}{}".format(thing_prefix, provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
             while True:
@@ -96,13 +99,16 @@ def check_real_cert():
                 while not jobagent.isRebooting():
                     time.sleep(1)
                 jobagent.disconnect()
-        else:    
+        else:
+            provisioner.isFirst = False    
             print("Directory is not empty so actual cert downloaded")
             files = [filename for filename in os.listdir(actua_cert_path) if filename.endswith('.crt')]
             provisioner.new_cert_name = files[0]
             files = [filename for filename in os.listdir(actua_cert_path) if filename.endswith('.key')]
             provisioner.new_key_name = files[0]
             provisioner.test_restricted_topic(message="test message")
+            print("Starting sensor")
+            sensor_simulator(provisioner)
             print("Starting job agent to listen for jobs")
             jobagent = DeviceJobAgent("{}{}".format(thing_prefix, provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
             while True:
@@ -113,6 +119,11 @@ def check_real_cert():
             
     else:
         print("Given directory doesn't exist")
+    
+def sensor_simulator(provisioner):
+    thread = Thread(target = provisioner.sensor_simulator)
+    thread.start()
+    print("Sensor thread Started")
 
 if __name__ == "__main__":
     check_real_cert()

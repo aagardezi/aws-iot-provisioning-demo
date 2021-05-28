@@ -18,6 +18,7 @@ import json
 import os
 import asyncio
 import glob
+import random
 
 
 class ProvisioningHandler:
@@ -43,6 +44,8 @@ class ProvisioningHandler:
         self.secure_key = self.config_parameters['SECURE_KEY']
         self.root_cert = self.config_parameters['ROOT_CERT']
         self.actua_cert_path = self.config_parameters['ACTUAL_CERT_PATH']
+
+        self.isFirst = True;
     
         # Sample Provisioning Template requests a serial number as a 
         # seed to generate Thing names in IoTCore. Simulating here.
@@ -377,5 +380,48 @@ class ProvisioningHandler:
             payload=json.dumps({" service_response": "##### RESPONSE FROM PREVIOUSLY FORBIDDEN TOPIC #####",
                 "messagebody": message}),
             qos=mqtt.QoS.AT_LEAST_ONCE)
+        
+    def sensor_simulator(self):
+        """method to simulate data being sent from a sensor
+        """
+
+        if self.isFirst:
+            self.primary_MQTTClient.disconnect()
+
+        event_loop_group = io.EventLoopGroup(1)
+        host_resolver = io.DefaultHostResolver(event_loop_group)
+        client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+
+        self.test_MQTTClient = mqtt_connection_builder.mtls_from_path(
+            endpoint=self.iot_endpoint,
+            cert_filepath="{}/{}".format(self.actua_cert_path, self.new_cert_name),
+            pri_key_filepath="{}/{}".format(self.actua_cert_path, self.new_key_name),
+            client_bootstrap=client_bootstrap,
+            ca_filepath="{}/{}".format(self.secure_cert_path, self.root_cert),
+            client_id=self.unique_id,
+            clean_session=False,
+            keep_alive_secs=6)
+        
+        print("Connecting with Prod certs to {} with client ID '{}'...".format(self.iot_endpoint, self.unique_id ))
+        connect_future = self.test_MQTTClient.connect()
+        # Future.result() waits until a result is available
+        connect_future.result()
+        print("Connected with Prod certs!")
+
+        new_cert_topic = "sensordata"
+        mqtt_topic_subscribe_future, _ = self.test_MQTTClient.subscribe(
+            topic=new_cert_topic,
+            qos=mqtt.QoS.AT_LEAST_ONCE,
+            callback=self.basic_callback)
+        while True:
+            print("Sending message: to restricted topic:{}".format(new_cert_topic))
+            self.test_MQTTClient.publish(
+                topic=new_cert_topic,
+                payload=json.dumps({"SensorName": self.unique_id,
+                    "SensorValue": random.randint(1, 100)}),
+                qos=mqtt.QoS.AT_LEAST_ONCE)
+            time.sleep(10)
+
+
 
 
