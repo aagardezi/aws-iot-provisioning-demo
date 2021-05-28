@@ -46,6 +46,7 @@ class ProvisioningHandler:
         self.actua_cert_path = self.config_parameters['ACTUAL_CERT_PATH']
 
         self.isFirst = True;
+        self.stopSimulator = False
     
         # Sample Provisioning Template requests a serial number as a 
         # seed to generate Thing names in IoTCore. Simulating here.
@@ -413,7 +414,7 @@ class ProvisioningHandler:
             topic=new_cert_topic,
             qos=mqtt.QoS.AT_LEAST_ONCE,
             callback=self.basic_callback)
-        while True:
+        while not self.stopSimulator:
             print("Sending message: to restricted topic:{}".format(new_cert_topic))
             self.test_MQTTClient.publish(
                 topic=new_cert_topic,
