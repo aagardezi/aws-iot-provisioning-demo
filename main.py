@@ -45,6 +45,7 @@ config_parameters = config.get_section('SETTINGS')
 secure_cert_path = config_parameters['SECURE_CERT_PATH']
 bootstrap_cert = config_parameters['CLAIM_CERT']
 actua_cert_path = config_parameters['ACTUAL_CERT_PATH']
+thing_prefix = config_parameters['THING_PREFIX']
 
 provisioner = ProvisioningHandler(CONFIG_PATH)
 
@@ -89,7 +90,7 @@ def check_real_cert():
             print("Actual cert Directory is empty")
             run_provisioning(isRotation=False)
             print("Provisioning complete. Starting job agent to listen for jobs")
-            jobagent = DeviceJobAgent("Samplething_{}".format(provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
+            jobagent = DeviceJobAgent("{}{}".format(thing_prefix, provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
             while True:
                 jobagent.init()
                 while not jobagent.isRebooting():
@@ -103,7 +104,7 @@ def check_real_cert():
             provisioner.new_key_name = files[0]
             provisioner.test_restricted_topic(message="test message")
             print("Starting job agent to listen for jobs")
-            jobagent = DeviceJobAgent("Samplething_{}".format(provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
+            jobagent = DeviceJobAgent("{}{}".format(thing_prefix, provisioner.unique_id), provisioner.iot_endpoint, "{}/{}".format(provisioner.actua_cert_path, provisioner.new_cert_name),"{}/{}".format(provisioner.actua_cert_path, provisioner.new_key_name), "{}/{}".format(provisioner.secure_cert_path, provisioner.root_cert))
             while True:
                 jobagent.init()
                 while not jobagent.isRebooting():
