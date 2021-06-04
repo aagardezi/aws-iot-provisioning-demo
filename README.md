@@ -19,6 +19,9 @@ To aid in the adoption and utilization of the functionality mentioned above, thi
 1. Rotate the certificates (decommission bootstrap, promote new cert)
 1. Test the rights of the newly acquired certificate.
 
+This image shows the full bootstrap process that is carried out in this solution:
+
+![design of solution](https://github.com/aagardezi/aws-iot-provisioning-demo/blob/main/images/IOTSensorFleetRegistration.png)
 
 ## Dependencies of the solution
 * Intended to be compatible with AWS Greengrass ... this solution depends on a python library (asyncio) which is __only available w/ python 3.7 and above.__ Please ensure your solution has at least this version.
