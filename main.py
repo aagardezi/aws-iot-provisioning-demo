@@ -116,8 +116,6 @@ def check_real_cert():
                 while not jobagent.isRebooting():
                     time.sleep(1)
                 jobagent.disconnect()
-
-
             
     else:
         print("Given directory doesn't exist")
